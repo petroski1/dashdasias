@@ -88,5 +88,7 @@ def curar(transcricao: Path, titulo_video: str, duracao_video: float, cfg: Curad
     )
     resp = llm.perguntar_json(SISTEMA, pedido, ESQUEMA, esforco="high")
     cortes = ajustar_cortes(resp["cortes"], dados["palavras"], duracao_video, cfg)
-    log.info("curador: %d propostas, %d aprovadas", len(resp["cortes"]), len(cortes))
+    log.info("curador: %d propostas, %d aprovadas (nota mínima %s)", len(resp["cortes"]), len(cortes), cfg.nota_minima)
+    for p in sorted(resp["cortes"], key=lambda x: x["nota"], reverse=True):
+        log.info("curador:   nota %s — %s (%.0fs) — %s", p["nota"], p["titulo"], p["fim"] - p["inicio"], p["motivo"][:160])
     return cortes
