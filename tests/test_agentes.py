@@ -102,3 +102,66 @@ def test_editor_gera_short_vertical(tmp_path, estilo):
     info = editor.verificar(saida)
     assert (info["largura"], info["altura"]) == (1080, 1920)
     assert info["duracao"] == pytest.approx(6.0, abs=0.2)
+
+
+def test_tempos_candidatos_ficam_dentro_do_corte():
+    from cortes.agentes.capista import tempos_candidatos
+
+    ts = tempos_candidatos(10.0, 40.0, 8)
+    assert len(ts) == 8 and ts[0] == 10.5 and ts[-1] == 39.5
+    assert ts == sorted(ts)
+
+
+def test_montar_capa_vertical_com_destaque():
+    from PIL import Image
+
+    from cortes.agentes.capista import montar_capa
+    from cortes.config import Capa
+
+    frame = Image.new("RGB", (1920, 1080), (40, 90, 160))
+    capa = montar_capa(frame, 0.9, "ele perdeu tudo", ["tudo"], Capa())
+    assert capa.size == (1080, 1920)
+    cores = {c for _, c in capa.getcolors(1_000_000)}
+    assert (255, 212, 0) in cores  # palavra em destaque pintada de amarelo
+
+
+def test_banco_antigo_ganha_coluna_capa(tmp_path):
+    import sqlite3
+
+    caminho = tmp_path / "antigo.db"
+    con = sqlite3.connect(caminho)
+    con.execute("CREATE TABLE cortes (id INTEGER PRIMARY KEY, video_id TEXT, inicio REAL, fim REAL, status TEXT)")
+    con.commit()
+    con.close()
+    b = Banco(caminho)
+    assert "capa" in {r["name"] for r in b.con.execute("PRAGMA table_info(cortes)")}
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg não instalado")
+def test_criar_capa_usa_frame_escolhido(tmp_path, monkeypatch):
+    from PIL import Image
+
+    from cortes import llm
+    from cortes.agentes import capista
+    from cortes.config import Capa
+
+    origem = tmp_path / "origem.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30:duration=10",
+         "-c:v", "libx264", str(origem)],
+        check=True,
+    )
+    pedidos = []
+
+    def falso(sistema, usuario, esquema, esforco="medium"):
+        pedidos.append(usuario)
+        return {"frame": 3, "foco_x": 0.5, "texto": "Você não vai acreditar", "destaques": ["acreditar"], "motivo": "teste"}
+
+    monkeypatch.setattr(llm, "perguntar_json", falso)
+    corte = {"inicio": 2.0, "fim": 8.0, "titulo": "Teste", "gancho": "Olha isso"}
+    destino = capista.criar_capa(origem, corte, tmp_path / "capa.jpg", Capa(frames_candidatos=4))
+
+    imagens = [b for b in pedidos[0] if b["type"] == "image"]
+    assert len(imagens) == 4
+    assert Image.open(destino).size == (1080, 1920)
+    assert destino.stat().st_size <= capista.LIMITE_BYTES

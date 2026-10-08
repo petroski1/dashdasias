@@ -13,14 +13,15 @@ edita em formato vertical com legendas e publica como Shorts.
 | **Curador** | Lê a transcrição e escolhe os trechos de 20–58s com gancho forte, começo e fim completos; gera título, descrição e hashtags | Claude |
 | **Revisor** | Confere se o corte faz sentido sozinho, se o título é fiel ao trecho e se nada viola as políticas do YouTube | Claude |
 | **Editor** | Recorta, converte para 1080x1920 (fundo desfocado ou corte central), normaliza o áudio, queima legendas animadas e o gancho nos 3 primeiros segundos | ffmpeg |
-| **Publicador** | Sobe no YouTube com `#Shorts`, créditos da fonte, agendamento espaçado e limite diário | YouTube Data API |
+| **Capista** | Separa frames do trecho, o Claude olha as imagens e escolhe a melhor (rosto expressivo, nítido), indica onde está a pessoa e escreve o texto da capa (2–5 palavras); monta a capa vertical com texto grande e palavra em destaque | Claude (visão) + Pillow |
+| **Publicador** | Sobe no YouTube com `#Shorts`, créditos da fonte, capa, agendamento espaçado e limite diário | YouTube Data API |
 
 O **orquestrador** (`cortes/pipeline.py`) passa cada vídeo por essas etapas e guarda tudo num
 SQLite (`dados/cortes.db`). Se algo falhar no meio, a próxima rodada continua de onde parou, e
 nada é postado duas vezes.
 
 ```
-Caçador → Baixador → Transcritor → Curador → Revisor → Editor → Publicador
+Caçador → Baixador → Transcritor → Curador → Revisor → Editor → Capista → Publicador
 ```
 
 ## ⚠️ Direitos autorais — leia antes
@@ -77,6 +78,14 @@ Comece com `privacidade: private` no `config.yaml`, confira os primeiros Shorts 
 só então mude para `public`. Em modo `public`, os Shorts são agendados com `intervalo_horas` entre
 um e outro.
 
+### Sobre as capas
+
+- O YouTube só aceita capa personalizada em **canais verificados por telefone**
+  (youtube.com/verify). Sem isso, o Short sobe normalmente, mas sem a capa (o erro só aparece no log).
+- A capa aparece na página do canal, na busca e nos vídeos sugeridos. No feed de rolar Shorts, o
+  YouTube costuma mostrar o próprio vídeo, não a capa.
+- As capas ficam em `dados/shorts/*.jpg`, ao lado de cada vídeo. Para desligar, use `capa.ativo: false`.
+
 ## Rodando 24h (automático)
 
 Use um servidor (VPS) e Docker:
@@ -96,7 +105,8 @@ Ou use o cron, sem Docker: `0 */2 * * * cd /caminho/dashdasias && .venv/bin/pyth
 - **YouTube API:** cota grátis de 10.000 unidades por dia. Cada upload gasta 1.600 unidades, então dá
   cerca de 5 Shorts por dia (`max_postagens_por_dia: 5`). Ler os canais custa poucas unidades, e
   cada busca Creative Commons custa 100. Dá para pedir aumento de cota ao Google.
-- **Claude:** usa `claude-opus-5-5` (dá para trocar com `CORTES_MODELO`). O que mais pesa é o
+- **Claude:** usa `claude-opus-5-5` (dá para trocar com `CORTES_MODELO`). O Capista envia 8 frames pequenos por Short (cerca de
+  US$ 0,01 cada). O que mais pesa é o
   Curador, que lê a transcrição inteira: um vídeo de 1 hora custa em torno de US$ 0,10–0,30. O
   Caçador e o Revisor custam centavos.
 - **Transcrição:** roda localmente. Em CPU, o modelo `small` leva mais ou menos o tempo do vídeo.
@@ -106,7 +116,7 @@ Ou use o cron, sem Docker: `0 */2 * * * cd /caminho/dashdasias && .venv/bin/pyth
 
 ```
 cortes/
-  agentes/       cacador, baixador, transcritor, curador, revisor, editor, publicador
+  agentes/       cacador, baixador, transcritor, curador, revisor, editor, capista, publicador
   pipeline.py    orquestrador
   llm.py         chamada ao Claude com saída JSON validada
   db.py          estado (SQLite)

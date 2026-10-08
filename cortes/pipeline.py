@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .agentes import baixador, cacador, curador, editor, publicador, revisor, transcritor
+from .agentes import baixador, cacador, capista, curador, editor, publicador, revisor, transcritor
 from .config import Config
 from .db import Banco
 from .youtube import servico
@@ -64,6 +64,17 @@ def etapa_preparar(cfg: Config, banco: Banco) -> None:
             banco.atualizar_video(v["id"], status="erro", erro=f"curadoria: {e}")
 
 
+def _criar_capa(cfg: Config, video: Path, corte: dict, destino: Path) -> str | None:
+    """Sem capa o Short ainda pode ser publicado (o YouTube escolhe um frame), então falha aqui não é fatal."""
+    if not cfg.capa.ativo:
+        return None
+    try:
+        return str(capista.criar_capa(video, corte, destino, cfg.capa))
+    except Exception:  # noqa: BLE001
+        log.exception("falha ao criar capa do corte %s", corte["id"])
+        return None
+
+
 def etapa_editar(cfg: Config, banco: Banco) -> None:
     por_video = defaultdict(list)
     for c in banco.cortes("curado"):
@@ -81,9 +92,10 @@ def etapa_editar(cfg: Config, banco: Banco) -> None:
                 c.update(titulo=r["titulo"], descricao=r["descricao"], hashtags=r["hashtags"])
                 saida = cfg.pasta_dados / "shorts" / f"{video_id}_{c['id']}.mp4"
                 editor.editar(Path(v["arquivo"]), transcricao, c, saida, cfg.editor)
+                capa = _criar_capa(cfg, Path(v["arquivo"]), c, saida.with_suffix(".jpg"))
                 banco.atualizar_corte(
                     c["id"], status="editado", arquivo=str(saida), titulo=c["titulo"], descricao=c["descricao"],
-                    hashtags=json.dumps(c["hashtags"], ensure_ascii=False),
+                    hashtags=json.dumps(c["hashtags"], ensure_ascii=False), capa=capa,
                 )
             except Exception as e:  # noqa: BLE001
                 log.exception("falha ao editar corte %s", c["id"])
@@ -109,6 +121,8 @@ def etapa_publicar(cfg: Config, banco: Banco, yt) -> None:
             # só agenda quando o destino é público; em modo de teste (private/unlisted) sobe direto
             quando = publicador.proximo_horario(banco.ultimo_agendamento(), p) if p.privacidade == "public" else None
             yt_id = publicador.publicar(yt, Path(c["arquivo"]), meta, quando)
+            if c["capa"]:
+                publicador.enviar_capa(yt, yt_id, Path(c["capa"]))
             banco.atualizar_corte(
                 c["id"], status="publicado", youtube_id=yt_id,
                 publicado_em=datetime.now(timezone.utc).isoformat(),

@@ -25,8 +25,8 @@ class RespostaRecusada(RuntimeError):
     pass
 
 
-def perguntar_json(sistema: str, usuario: str, esquema: dict, esforco: str = "medium") -> dict:
-    """Envia o pedido e devolve o JSON da resposta, já no formato do esquema."""
+def perguntar_json(sistema: str, usuario: str | list[dict], esquema: dict, esforco: str = "medium") -> dict:
+    """Envia o pedido (texto, ou lista de blocos com imagens) e devolve o JSON da resposta, já no formato do esquema."""
     with cliente().beta.messages.stream(
         model=MODELO,
         max_tokens=64000,

@@ -41,6 +41,13 @@ class Editor(BaseModel):
     cor_destaque: str = "&H0000FFFF"
 
 
+class Capa(BaseModel):
+    ativo: bool = True
+    frames_candidatos: int = 8
+    fonte_arquivo: str = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+    cor_destaque: str = "#FFD400"
+
+
 class Publicador(BaseModel):
     privacidade: Literal["private", "unlisted", "public"] = "private"
     max_postagens_por_dia: int = 5
@@ -60,6 +67,7 @@ class Config(BaseModel):
     curador: Curador = Field(default_factory=Curador)
     transcricao: Transcricao = Field(default_factory=Transcricao)
     editor: Editor = Field(default_factory=Editor)
+    capa: Capa = Field(default_factory=Capa)
     publicador: Publicador = Field(default_factory=Publicador)
     orquestrador: Orquestrador = Field(default_factory=Orquestrador)
 

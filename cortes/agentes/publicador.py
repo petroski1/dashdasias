@@ -62,3 +62,16 @@ def publicar(yt, arquivo: Path, metadados: dict, publicar_em: datetime | None) -
         _, resposta = pedido.next_chunk()
     log.info("publicador: %s -> https://youtube.com/shorts/%s", arquivo.name, resposta["id"])
     return resposta["id"]
+
+
+def enviar_capa(yt, video_id: str, capa: Path) -> bool:
+    """Define a thumbnail. Exige canal verificado por telefone; se falhar, o vídeo continua no ar."""
+    from googleapiclient.http import MediaFileUpload
+
+    try:
+        yt.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(str(capa), mimetype="image/jpeg")).execute()
+        log.info("publicador: capa enviada para %s", video_id)
+        return True
+    except Exception as e:  # noqa: BLE001
+        log.warning("publicador: não foi possível enviar a capa de %s: %s", video_id, e)
+        return False
