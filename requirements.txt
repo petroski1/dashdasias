@@ -3,6 +3,7 @@ google-api-python-client>=2.150
 google-auth-oauthlib>=1.2
 yt-dlp>=2026.8.19
 faster-whisper>=1.1
+av>=11,<19              # o PyAV 19 removeu uma opção que o faster-whisper usa
 pydantic>=2.8
 Pillow>=10.1
 PyYAML>=6.0
