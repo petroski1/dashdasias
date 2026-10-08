@@ -1,3 +1,4 @@
+from pathlib import Path
 import json
 import shutil
 import subprocess
@@ -192,3 +193,18 @@ def test_editor_hyperframes_gera_short_vertical(tmp_path):
     assert (info["largura"], info["altura"]) == (1080, 1920)
     assert info["duracao"] == pytest.approx(4.0, abs=0.2)
     assert not (tmp_path / "shorts" / ".hf_c1").exists()  # projeto temporário apagado
+
+
+def test_configurar_grava_env_e_canais(tmp_path):
+    from cortes import configurar
+
+    env = tmp_path / ".env"
+    env.write_text("ANTHROPIC_API_KEY=antiga\nCORTES_MODELO=x\n")
+    configurar.gravar_env("sk-ant-nova", env)
+    assert env.read_text().splitlines() == ["ANTHROPIC_API_KEY=sk-ant-nova", "CORTES_MODELO=x"]
+
+    cfg = tmp_path / "config.yaml"
+    canal = "UC" + "a" * 22
+    configurar.gravar_canais([canal], cfg, Path("config.example.yaml"))
+    from cortes.config import carregar
+    assert carregar(cfg).fontes.canais_autorizados == [canal]

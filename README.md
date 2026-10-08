@@ -62,8 +62,7 @@ pip install -r requirements.txt
 
 cd hyperframes && npm install && npm run preparar && cd ..   # HyperFrames + Chrome de renderização
 
-cp .env.example .env                 # coloque sua ANTHROPIC_API_KEY
-cp config.example.yaml config.yaml   # coloque os canais autorizados e ajuste os filtros
+python -m cortes configurar          # pede a chave da Anthropic (sem mostrar) e os canais; cria .env e config.yaml
 ```
 
 ### Acesso ao YouTube (uma vez só)

@@ -1,5 +1,6 @@
 """Linha de comando.
 
+    python -m cortes configurar              # primeira vez: chave da Anthropic e canais
     python -m cortes auth                    # autoriza o canal do YouTube (uma vez)
     python -m cortes rodar                   # uma rodada comandada pelo Gerente
     python -m cortes rodar --sem-publicar    # tudo menos o upload
@@ -62,6 +63,7 @@ def main() -> None:
     p.add_argument("--config", default="config.yaml")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="comando", required=True)
+    sub.add_parser("configurar")
     sub.add_parser("auth")
     r = sub.add_parser("rodar")
     r.add_argument("--sem-publicar", action="store_true")
@@ -81,6 +83,11 @@ def main() -> None:
     for barulhento in ("googleapiclient", "httpx", "faster_whisper"):
         logging.getLogger(barulhento).setLevel(logging.WARNING)
 
+    if args.comando == "configurar":
+        from . import configurar
+
+        configurar.rodar()
+        return
     if args.comando == "auth":
         youtube.autenticar_interativo()
         return
