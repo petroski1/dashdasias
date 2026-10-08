@@ -11,3 +11,8 @@ hyperframes/node_modules/
 hyperframes/short/vendor/
 hyperframes/short/demo.mp4
 hyperframes/renders/
+videos/*/renders/
+videos/*/node_modules/
+videos/*/.media/
+videos/*/snapshots/
+videos/*/.hyperframes/frame-packets/
