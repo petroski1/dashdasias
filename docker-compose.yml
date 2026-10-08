@@ -1,0 +1,9 @@
+services:
+  cortes:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./token.json:/app/token.json
+      - ./dados:/app/dados

@@ -1,0 +1,8 @@
+anthropic>=1.12
+google-api-python-client>=2.150
+google-auth-oauthlib>=1.2
+yt-dlp>=2026.9.1
+faster-whisper>=1.1
+pydantic>=2.8
+PyYAML>=6.0
+python-dotenv>=1.0

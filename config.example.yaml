@@ -1,0 +1,52 @@
+# Copie para config.yaml e ajuste.
+#
+# IMPORTANTE (direitos autorais): só use vídeos que você tem direito de recortar
+# e republicar — vídeos do seu próprio canal, de criadores que te autorizaram
+# (por contrato/programa de cortes) ou com licença Creative Commons (CC BY).
+# Repostar conteúdo de terceiros sem autorização gera strikes de copyright,
+# bloqueio de monetização ("conteúdo reutilizado") e pode derrubar o canal.
+
+fontes:
+  # IDs de canais (começam com "UC...") cujos vídeos você está autorizado a cortar.
+  canais_autorizados:
+    - UCxxxxxxxxxxxxxxxxxxxxxx
+  # Também procurar vídeos com licença Creative Commons sobre estes temas.
+  # Deixe a lista vazia para desligar.
+  buscas_creative_commons: []
+  #  - "podcast empreendedorismo"
+
+cacador:
+  dias_maximos: 14            # só vídeos publicados nos últimos N dias
+  visualizacoes_minimas: 50000
+  duracao_minima_seg: 240     # vídeos curtos demais não rendem cortes
+  duracao_maxima_seg: 10800
+  videos_por_rodada: 2        # quantos vídeos novos processar a cada execução
+
+curador:
+  cortes_por_video: 3
+  duracao_min_seg: 20
+  duracao_max_seg: 58         # Shorts aceita até 3 min, mas < 60s performa melhor
+  nota_minima: 7              # 0–10; cortes abaixo disso são descartados
+  idioma: pt-BR
+
+transcricao:
+  modelo_whisper: small       # tiny | base | small | medium | large-v3
+  dispositivo: cpu            # cpu | cuda
+
+editor:
+  estilo: desfocado           # desfocado (vídeo inteiro com fundo borrado) | recorte (corta o centro em 9:16)
+  legendas: true
+  palavras_por_legenda: 3
+  fonte: "Liberation Sans"   # instalada no Docker; troque por outra fonte do sistema se quiser
+  cor_destaque: "&H0000FFFF"  # amarelo no formato ASS (&HAABBGGRR)
+
+publicador:
+  privacidade: private        # comece com private para testar; depois mude para public
+  max_postagens_por_dia: 5    # cada upload gasta 1600 da cota diária de 10.000 da API
+  intervalo_horas: 3          # espaço entre publicações agendadas (0 = publica na hora)
+  categoria_id: "22"          # 22 = People & Blogs
+  creditar_fonte: true        # adiciona "Fonte: ..." na descrição
+
+orquestrador:
+  intervalo_minutos: 120      # usado pelo modo "daemon"
+  pasta_dados: dados
