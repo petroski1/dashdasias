@@ -16,13 +16,26 @@ edita em formato vertical com legendas e publica como Shorts.
 | **Capista** | Separa frames do trecho, o Claude olha as imagens e escolhe a melhor (rosto expressivo, nítido), indica onde está a pessoa e escreve o texto da capa (2–5 palavras); monta a capa vertical com texto grande e palavra em destaque | Claude (visão) + Pillow |
 | **Publicador** | Sobe no YouTube com `#Shorts`, créditos da fonte, capa, agendamento espaçado e limite diário | YouTube Data API |
 
-O **orquestrador** (`cortes/pipeline.py`) passa cada vídeo por essas etapas e guarda tudo num
-SQLite (`dados/cortes.db`). Se algo falhar no meio, a próxima rodada continua de onde parou, e
-nada é postado duas vezes.
-
 ```
 Caçador → Baixador → Transcritor → Curador → Revisor → Editor → Capista → Publicador
 ```
+
+### Equipe administrativa
+
+Acima dos especialistas tem uma equipe que gerencia o trabalho:
+
+| Agente | Papel | Como funciona |
+|---|---|---|
+| **Gerente** (orquestrador) | Comanda a rodada: olha o painel, resolve problemas, manda planejar e executar, pausa as publicações se algo sério acontecer e escreve um relatório | Claude com ferramentas (`agentes/gerente.py`) |
+| **Planejador** | Transforma o estado de cada vídeo/corte em tarefas ("baixar v1", "editar corte 12"), sem duplicar e respeitando o limite diário e as pausas | Código, sem IA: é uma regra fixa, então fica rápido, de graça e nunca esquece nada |
+| **Executor** | Executa as tarefas encadeando as etapas e trata os erros: tenta de novo, adia, descarta o item ou chama um humano, explicando em português o que aconteceu e o que fazer | Código + Claude para diagnosticar erros desconhecidos |
+
+Erros conhecidos o Executor resolve sem IA: cota do YouTube esgotada (adia 6h), login expirado ou
+chave inválida (chama você), vídeo removido ou privado (descarta). Depois de 3 tentativas sem
+sucesso, a tarefa é **escalada** para você.
+
+Cada rodada gera um relatório em `dados/relatorios/`. Tudo fica num SQLite (`dados/cortes.db`).
+Se o processo cair no meio, a próxima rodada continua de onde parou, e nada é postado duas vezes.
 
 ## ⚠️ Direitos autorais — leia antes
 
@@ -69,8 +82,13 @@ cp config.example.yaml config.yaml   # coloque os canais autorizados e ajuste os
 
 ```bash
 python -m cortes rodar --sem-publicar   # testa tudo menos o upload; veja os vídeos em dados/shorts/
-python -m cortes rodar                  # uma rodada completa
-python -m cortes status                 # fila e últimos Shorts publicados
+python -m cortes rodar                  # uma rodada completa, comandada pelo Gerente
+python -m cortes rodar --sem-gerente    # só Planejador + Executor (mais barato, sem relatório)
+python -m cortes status                 # fila, o que precisa de você e últimos Shorts publicados
+python -m cortes tarefas                # todas as tarefas abertas, com o diagnóstico
+python -m cortes reabrir 12             # depois de resolver o problema, reabre a tarefa 12
+python -m cortes cancelar 12            # desiste da tarefa 12 (e do vídeo ou corte dela)
+python -m cortes retomar-publicacoes    # tira a pausa que o Gerente colocou
 python -m cortes daemon                 # roda sozinho a cada `intervalo_minutos`
 ```
 
@@ -105,10 +123,10 @@ Ou use o cron, sem Docker: `0 */2 * * * cd /caminho/dashdasias && .venv/bin/pyth
 - **YouTube API:** cota grátis de 10.000 unidades por dia. Cada upload gasta 1.600 unidades, então dá
   cerca de 5 Shorts por dia (`max_postagens_por_dia: 5`). Ler os canais custa poucas unidades, e
   cada busca Creative Commons custa 100. Dá para pedir aumento de cota ao Google.
-- **Claude:** usa `claude-opus-5-5` (dá para trocar com `CORTES_MODELO`). O Capista envia 8 frames pequenos por Short (cerca de
-  US$ 0,01 cada). O que mais pesa é o
+- **Claude:** usa `claude-opus-5-5` (dá para trocar com `CORTES_MODELO`). O que mais pesa é o
   Curador, que lê a transcrição inteira: um vídeo de 1 hora custa em torno de US$ 0,10–0,30. O
-  Caçador e o Revisor custam centavos.
+  Capista envia 8 frames pequenos por Short (cerca de US$ 0,01). O Caçador, o Revisor, o Gerente e
+  o diagnóstico de erros custam centavos por rodada.
 - **Transcrição:** roda localmente. Em CPU, o modelo `small` leva mais ou menos o tempo do vídeo.
   Com GPU (`dispositivo: cuda`) é bem mais rápido.
 
@@ -117,7 +135,9 @@ Ou use o cron, sem Docker: `0 */2 * * * cd /caminho/dashdasias && .venv/bin/pyth
 ```
 cortes/
   agentes/       cacador, baixador, transcritor, curador, revisor, editor, capista, publicador
-  pipeline.py    orquestrador
+  agentes/       gerente, planejador, executor (equipe administrativa)
+  trabalhos.py   uma função por tipo de tarefa, chamando o especialista certo
+  pipeline.py    ponto de entrada de uma rodada
   llm.py         chamada ao Claude com saída JSON validada
   db.py          estado (SQLite)
   youtube.py     OAuth e cliente da API
