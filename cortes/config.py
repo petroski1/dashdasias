@@ -37,14 +37,14 @@ class Editor(BaseModel):
     estilo: Literal["desfocado", "recorte"] = "desfocado"
     legendas: bool = True
     palavras_por_legenda: int = 3
-    fonte: str = "Liberation Sans"
+    fonte: str = "Arial"
     cor_destaque: str = "&H0000FFFF"
 
 
 class Capa(BaseModel):
     ativo: bool = True
     frames_candidatos: int = 8
-    fonte_arquivo: str = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+    fonte_arquivo: str = ""   # vazio = procura uma fonte negrito do sistema
     cor_destaque: str = "#FFD400"
 
 
@@ -54,6 +54,13 @@ class Publicador(BaseModel):
     intervalo_horas: float = 3
     categoria_id: str = "22"
     creditar_fonte: bool = True
+
+
+class Gerencia(BaseModel):
+    usar_gerente: bool = True          # False = roda só Planejador + Executor, sem o Gerente (Claude)
+    max_tentativas: int = 3            # depois disso o Executor escala para um humano
+    max_tarefas_por_rodada: int = 40
+    intervalo_caca_horas: float = 2    # tempo mínimo entre duas buscas de vídeos novos
 
 
 class Orquestrador(BaseModel):
@@ -69,6 +76,7 @@ class Config(BaseModel):
     editor: Editor = Field(default_factory=Editor)
     capa: Capa = Field(default_factory=Capa)
     publicador: Publicador = Field(default_factory=Publicador)
+    gerencia: Gerencia = Field(default_factory=Gerencia)
     orquestrador: Orquestrador = Field(default_factory=Orquestrador)
 
     @property

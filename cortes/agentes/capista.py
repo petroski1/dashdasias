@@ -71,12 +71,23 @@ def _jpeg_b64(img: Image.Image) -> str:
     return base64.standard_b64encode(buf.getvalue()).decode()
 
 
+FONTES_SISTEMA = [
+    "C:/Windows/Fonts/arialbd.ttf",                                   # Windows
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",              # macOS
+    "/Library/Fonts/Arial Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",   # Linux / Docker
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+
+
 def _fonte(cfg: Capa, tamanho: int) -> ImageFont.FreeTypeFont:
-    try:
-        return ImageFont.truetype(cfg.fonte_arquivo, tamanho)
-    except OSError:
-        log.warning("capista: fonte %s não encontrada, usando a padrão", cfg.fonte_arquivo)
-        return ImageFont.load_default(tamanho)
+    for caminho in ([cfg.fonte_arquivo] if cfg.fonte_arquivo else []) + FONTES_SISTEMA:
+        try:
+            return ImageFont.truetype(caminho, tamanho)
+        except OSError:
+            continue
+    log.warning("capista: nenhuma fonte negrito encontrada, usando a padrão")
+    return ImageFont.load_default(tamanho)
 
 
 def _quebrar(palavras: list[str], fonte, largura_max: int, draw: ImageDraw.ImageDraw) -> list[list[str]]:

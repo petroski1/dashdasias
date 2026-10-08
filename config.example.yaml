@@ -37,13 +37,13 @@ editor:
   estilo: desfocado           # desfocado (vídeo inteiro com fundo borrado) | recorte (corta o centro em 9:16)
   legendas: true
   palavras_por_legenda: 3
-  fonte: "Liberation Sans"   # instalada no Docker; troque por outra fonte do sistema se quiser
+  fonte: "Arial"             # nome da fonte das legendas (no Linux vira Liberation Sans)
   cor_destaque: "&H0000FFFF"  # amarelo no formato ASS (&HAABBGGRR)
 
 capa:
   ativo: true                 # Agente Capista: gera a foto de capa de cada Short
   frames_candidatos: 8        # quantos frames do trecho o Claude avalia
-  fonte_arquivo: /usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf
+  fonte_arquivo: ""           # arquivo .ttf da fonte; vazio = acha uma negrito no Windows/Mac/Linux
   cor_destaque: "#FFD400"     # cor das palavras em destaque
 
 publicador:
@@ -52,6 +52,12 @@ publicador:
   intervalo_horas: 3          # espaço entre publicações agendadas (0 = publica na hora)
   categoria_id: "22"          # 22 = People & Blogs
   creditar_fonte: true        # adiciona "Fonte: ..." na descrição
+
+gerencia:
+  usar_gerente: true          # Gerente (Claude) comanda a rodada; false = só Planejador + Executor
+  max_tentativas: 3           # depois disso o Executor chama um humano
+  max_tarefas_por_rodada: 40
+  intervalo_caca_horas: 2     # tempo mínimo entre duas buscas de vídeos novos
 
 orquestrador:
   intervalo_minutos: 120      # usado pelo modo "daemon"

@@ -1,145 +1,27 @@
-"""Orquestrador: passa cada vídeo/corte pelos agentes, guardando o progresso no banco.
+"""Ponto de entrada de uma rodada.
 
-Cada etapa é retomável: se o processo cair no meio, a próxima rodada continua de onde parou.
+Com o Gerente ligado, o Claude comanda a rodada (veja agentes/gerente.py). Sem ele, roda o ciclo fixo:
+Planejador cria as tarefas e o Executor executa, encadeando as etapas.
 """
 from __future__ import annotations
 
-import json
 import logging
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
-from .agentes import baixador, cacador, capista, curador, editor, publicador, revisor, transcritor
+from .agentes import executor, gerente, planejador
 from .config import Config
 from .db import Banco
-from .youtube import servico
+from .trabalhos import Contexto
 
 log = logging.getLogger(__name__)
 
 
-def _corte_dict(linha) -> dict:
-    d = dict(linha)
-    d["hashtags"] = json.loads(d["hashtags"] or "[]")
-    return d
+def contexto(cfg: Config, publicar: bool = True) -> Contexto:
+    return Contexto(cfg=cfg, banco=Banco(cfg.pasta_dados / "cortes.db"), publicar=publicar)
 
 
-def etapa_cacar(cfg: Config, banco: Banco, yt) -> None:
-    pendentes = len(banco.videos("encontrado")) + len(banco.videos("baixado")) + len(banco.videos("transcrito"))
-    if pendentes >= cfg.cacador.videos_por_rodada:
-        log.info("caçador: %d vídeos ainda na fila, pulando busca", pendentes)
-        return
-    cacador.rodar(cfg, banco, yt)
-
-
-def etapa_preparar(cfg: Config, banco: Banco) -> None:
-    pasta = cfg.pasta_dados / "originais"
-    for v in banco.videos("encontrado"):
-        try:
-            arquivo = baixador.baixar(v["id"], pasta)
-            banco.atualizar_video(v["id"], status="baixado", arquivo=str(arquivo))
-        except Exception as e:  # noqa: BLE001 — um vídeo com problema não pode parar a fila
-            log.exception("falha ao baixar %s", v["id"])
-            banco.atualizar_video(v["id"], status="erro", erro=f"download: {e}")
-
-    for v in banco.videos("baixado"):
-        try:
-            t = transcritor.transcrever(Path(v["arquivo"]), cfg.transcricao)
-            banco.atualizar_video(v["id"], status="transcrito", transcricao=str(t))
-        except Exception as e:  # noqa: BLE001
-            log.exception("falha ao transcrever %s", v["id"])
-            banco.atualizar_video(v["id"], status="erro", erro=f"transcrição: {e}")
-
-    for v in banco.videos("transcrito"):
-        try:
-            cortes = curador.curar(Path(v["transcricao"]), v["titulo"], v["duracao_seg"], cfg.curador)
-            for c in cortes:
-                banco.inserir_corte(
-                    v["id"], inicio=c["inicio"], fim=c["fim"], titulo=c["titulo"], descricao=c["descricao"],
-                    hashtags=c["hashtags"], gancho=c["gancho"], nota=c["nota"],
-                )
-            banco.atualizar_video(v["id"], status="curado" if cortes else "descartado")
-        except Exception as e:  # noqa: BLE001
-            log.exception("falha na curadoria de %s", v["id"])
-            banco.atualizar_video(v["id"], status="erro", erro=f"curadoria: {e}")
-
-
-def _criar_capa(cfg: Config, video: Path, corte: dict, destino: Path) -> str | None:
-    """Sem capa o Short ainda pode ser publicado (o YouTube escolhe um frame), então falha aqui não é fatal."""
-    if not cfg.capa.ativo:
-        return None
-    try:
-        return str(capista.criar_capa(video, corte, destino, cfg.capa))
-    except Exception:  # noqa: BLE001
-        log.exception("falha ao criar capa do corte %s", corte["id"])
-        return None
-
-
-def etapa_editar(cfg: Config, banco: Banco) -> None:
-    por_video = defaultdict(list)
-    for c in banco.cortes("curado"):
-        por_video[c["video_id"]].append(_corte_dict(c))
-
-    for video_id, cortes in por_video.items():
-        v = banco.video(video_id)
-        transcricao = Path(v["transcricao"])
-        for c in cortes:
-            try:
-                r = revisor.revisar(transcricao, c)
-                if not r["aprovado"]:
-                    banco.atualizar_corte(c["id"], status="reprovado", erro="; ".join(r["problemas"]))
-                    continue
-                c.update(titulo=r["titulo"], descricao=r["descricao"], hashtags=r["hashtags"])
-                saida = cfg.pasta_dados / "shorts" / f"{video_id}_{c['id']}.mp4"
-                editor.editar(Path(v["arquivo"]), transcricao, c, saida, cfg.editor)
-                capa = _criar_capa(cfg, Path(v["arquivo"]), c, saida.with_suffix(".jpg"))
-                banco.atualizar_corte(
-                    c["id"], status="editado", arquivo=str(saida), titulo=c["titulo"], descricao=c["descricao"],
-                    hashtags=json.dumps(c["hashtags"], ensure_ascii=False), capa=capa,
-                )
-            except Exception as e:  # noqa: BLE001
-                log.exception("falha ao editar corte %s", c["id"])
-                banco.atualizar_corte(c["id"], status="erro", erro=f"edição: {e}")
-        # todos os cortes desse vídeo foram editados: o original não é mais necessário
-        Path(v["arquivo"]).unlink(missing_ok=True)
-
-
-def etapa_publicar(cfg: Config, banco: Banco, yt) -> None:
-    p = cfg.publicador
-    agora = datetime.now(timezone.utc)
-    feitos = banco.publicados_desde((agora - timedelta(hours=24)).isoformat())
-    vagas = max(p.max_postagens_por_dia - feitos, 0)
-    if not vagas:
-        log.info("publicador: limite diário atingido (%d)", p.max_postagens_por_dia)
-        return
-
-    for c in banco.cortes("editado")[:vagas]:
-        c = _corte_dict(c)
-        v = dict(banco.video(c["video_id"]))
-        try:
-            meta = publicador.montar_metadados(c, v, p)
-            # só agenda quando o destino é público; em modo de teste (private/unlisted) sobe direto
-            quando = publicador.proximo_horario(banco.ultimo_agendamento(), p) if p.privacidade == "public" else None
-            yt_id = publicador.publicar(yt, Path(c["arquivo"]), meta, quando)
-            if c["capa"]:
-                publicador.enviar_capa(yt, yt_id, Path(c["capa"]))
-            banco.atualizar_corte(
-                c["id"], status="publicado", youtube_id=yt_id,
-                publicado_em=datetime.now(timezone.utc).isoformat(),
-                publicar_em=quando.isoformat() if quando else None,
-            )
-        except Exception as e:  # noqa: BLE001
-            log.exception("falha ao publicar corte %s", c["id"])
-            banco.atualizar_corte(c["id"], status="erro", erro=f"publicação: {e}")
-            if "quotaExceeded" in str(e):
-                break
-
-
-def rodar(cfg: Config, publicar: bool = True) -> None:
-    banco = Banco(cfg.pasta_dados / "cortes.db")
-    yt = servico()
-    etapa_cacar(cfg, banco, yt)
-    etapa_preparar(cfg, banco)
-    etapa_editar(cfg, banco)
-    if publicar:
-        etapa_publicar(cfg, banco, yt)
+def rodar(cfg: Config, publicar: bool = True, usar_gerente: bool | None = None) -> str:
+    ctx = contexto(cfg, publicar)
+    if cfg.gerencia.usar_gerente if usar_gerente is None else usar_gerente:
+        return gerente.rodar(ctx)
+    planejador.planejar(ctx)
+    return executor.executar(ctx).texto()
