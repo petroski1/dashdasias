@@ -182,3 +182,22 @@ def test_ferramentas_do_gerente(ctx, monkeypatch, sem_ia):
     assert "reaberta" in f["reabrir_tarefa"].call({"tarefa_id": tid, "motivo": "liberei espaço"})
     assert "cancelada" in f["cancelar_tarefa"].call({"tarefa_id": tid, "motivo": "não vale a pena"})
     assert ctx.banco.video("v2")["status"] == "erro"
+
+
+def test_executor_escala_youtube_sem_login_sem_derrubar_a_rodada(ctx, monkeypatch, sem_ia):
+    from cortes.youtube import YouTubeSemLogin
+
+    def cacar(ctx, alvo):
+        raise YouTubeSemLogin("Sem token do YouTube. Rode: python -m cortes auth")
+
+    def baixar(ctx, alvo):
+        raise RuntimeError("ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies-from-browser")
+
+    _fakes(monkeypatch, ctx, cacar=cacar, baixar=baixar)
+    ctx.banco.inserir_video(id="v1", titulo="a", status="encontrado")
+    ctx.banco.criar_tarefa("cacar")
+    ctx.banco.criar_tarefa("baixar", "v1")
+    resumo = executor.executar(ctx, encadear=False)
+    assert len(resumo.escaladas) == 2
+    textos = " ".join(resumo.escaladas)
+    assert "python -m cortes auth" in textos and "cookies_navegador" in textos

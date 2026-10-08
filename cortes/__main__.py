@@ -80,7 +80,7 @@ def main() -> None:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    for barulhento in ("googleapiclient", "httpx", "faster_whisper"):
+    for barulhento in ("googleapiclient", "httpx", "httpx2", "faster_whisper"):
         logging.getLogger(barulhento).setLevel(logging.WARNING)
 
     if args.comando == "configurar":

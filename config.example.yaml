@@ -22,6 +22,11 @@ cacador:
   duracao_maxima_seg: 10800
   videos_por_rodada: 2        # quantos vídeos novos processar a cada execução
 
+baixador:
+  # Se o YouTube pedir "confirme que você não é um robô", use o login do seu navegador:
+  cookies_navegador: ""       # chrome | firefox | edge | safari (deixe vazio se não precisar)
+  cookies_arquivo: ""         # ou o caminho de um cookies.txt exportado
+
 curador:
   cortes_por_video: 3
   duracao_min_seg: 20

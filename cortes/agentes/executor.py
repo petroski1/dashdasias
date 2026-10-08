@@ -47,6 +47,11 @@ Escreva diagnostico e o_que_fazer em português do Brasil, curtos e diretos."""
 REGRAS = [
     (("quotaExceeded", "uploadLimitExceeded", "dailyLimitExceeded"), "adiar", 360,
      "A cota diária da API do YouTube acabou. Ela renova à meia-noite do horário do Pacífico."),
+    (("Sem token do YouTube", "YouTubeSemLogin"), "escalar", 0,
+     "O YouTube ainda não foi conectado. Rode no terminal: python -m cortes auth"),
+    (("confirm you’re not a bot", "confirm you're not a bot"), "escalar", 0,
+     "O YouTube bloqueou o download pedindo login. No config.yaml, em baixador, coloque "
+     "cookies_navegador: chrome (ou o navegador em que você está logado no YouTube) e reabra a tarefa."),
     (("invalid_grant", "RefreshError", "Token has been expired"), "escalar", 0,
      "O login do YouTube expirou. Rode no terminal: python -m cortes auth"),
     (("authentication_error", "AuthenticationError", "invalid x-api-key"), "escalar", 0,

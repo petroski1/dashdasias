@@ -12,6 +12,11 @@ class Fontes(BaseModel):
     buscas_creative_commons: list[str] = Field(default_factory=list)
 
 
+class Baixador(BaseModel):
+    cookies_navegador: str = ""   # ex.: chrome, firefox, edge, safari — usa o login do YouTube desse navegador
+    cookies_arquivo: str = ""     # alternativa: arquivo cookies.txt exportado do navegador
+
+
 class Cacador(BaseModel):
     dias_maximos: int = 14
     visualizacoes_minimas: int = 50_000
@@ -73,6 +78,7 @@ class Orquestrador(BaseModel):
 class Config(BaseModel):
     fontes: Fontes = Field(default_factory=Fontes)
     cacador: Cacador = Field(default_factory=Cacador)
+    baixador: Baixador = Field(default_factory=Baixador)
     curador: Curador = Field(default_factory=Curador)
     transcricao: Transcricao = Field(default_factory=Transcricao)
     editor: Editor = Field(default_factory=Editor)
@@ -91,5 +97,5 @@ class Config(BaseModel):
 def carregar(caminho: str | Path = "config.yaml") -> Config:
     caminho = Path(caminho)
     if not caminho.exists():
-        raise SystemExit(f"Arquivo {caminho} não encontrado. Copie config.example.yaml para {caminho}.")
+        raise SystemExit(f"Arquivo {caminho} não encontrado. Rode: python -m cortes configurar")
     return Config.model_validate(yaml.safe_load(caminho.read_text(encoding="utf-8")) or {})

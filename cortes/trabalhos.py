@@ -54,7 +54,7 @@ def cacar(ctx: Contexto, alvo: str) -> str:
 
 
 def baixar(ctx: Contexto, video_id: str) -> str:
-    arquivo = baixador.baixar(video_id, ctx.cfg.pasta_dados / "originais")
+    arquivo = baixador.baixar(video_id, ctx.cfg.pasta_dados / "originais", ctx.cfg.baixador)
     ctx.banco.atualizar_video(video_id, status="baixado", arquivo=str(arquivo))
     return f"baixado em {arquivo}"
 

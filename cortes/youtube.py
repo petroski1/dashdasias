@@ -27,13 +27,17 @@ def autenticar_interativo() -> None:
     print(f"Autorizado. Token salvo em {TOKEN}.")
 
 
+class YouTubeSemLogin(RuntimeError):
+    pass
+
+
 def servico():
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
     if not TOKEN.exists():
-        raise SystemExit("Sem token do YouTube. Rode: python -m cortes auth")
+        raise YouTubeSemLogin("Sem token do YouTube. Rode: python -m cortes auth")
     cred = Credentials.from_authorized_user_file(str(TOKEN), ESCOPOS)
     if not cred.valid and cred.refresh_token:
         cred.refresh(Request())

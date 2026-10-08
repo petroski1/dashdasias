@@ -4,10 +4,12 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from ..config import Baixador
+
 log = logging.getLogger(__name__)
 
 
-def baixar(video_id: str, pasta: Path) -> Path:
+def baixar(video_id: str, pasta: Path, cfg: Baixador | None = None) -> Path:
     import yt_dlp
 
     pasta.mkdir(parents=True, exist_ok=True)
@@ -21,6 +23,10 @@ def baixar(video_id: str, pasta: Path) -> Path:
         "quiet": True,
         "noprogress": True,
     }
+    if cfg and cfg.cookies_navegador:
+        opcoes["cookiesfrombrowser"] = (cfg.cookies_navegador,)
+    if cfg and cfg.cookies_arquivo:
+        opcoes["cookiefile"] = cfg.cookies_arquivo
     with yt_dlp.YoutubeDL(opcoes) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
     if not destino.exists():
