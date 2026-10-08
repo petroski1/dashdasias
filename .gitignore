@@ -7,3 +7,7 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+hyperframes/node_modules/
+hyperframes/short/vendor/
+hyperframes/short/demo.mp4
+hyperframes/renders/

@@ -34,11 +34,13 @@ class Transcricao(BaseModel):
 
 
 class Editor(BaseModel):
+    motor: Literal["hyperframes", "ffmpeg"] = "hyperframes"
     estilo: Literal["desfocado", "recorte"] = "desfocado"
     legendas: bool = True
     palavras_por_legenda: int = 3
     fonte: str = "Arial"
-    cor_destaque: str = "&H0000FFFF"
+    cor_destaque: str = "&H0000FFFF"   # motor ffmpeg (formato ASS)
+    cor_destaque_css: str = "#FFD400"  # motor hyperframes
 
 
 class Capa(BaseModel):

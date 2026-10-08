@@ -12,7 +12,7 @@ edita em formato vertical com legendas e publica como Shorts.
 | **Transcritor** | Transcreve com o tempo exato de cada palavra | faster-whisper (local, grátis) |
 | **Curador** | Lê a transcrição e escolhe os trechos de 20–58s com gancho forte, começo e fim completos; gera título, descrição e hashtags | Claude |
 | **Revisor** | Confere se o corte faz sentido sozinho, se o título é fiel ao trecho e se nada viola as políticas do YouTube | Claude |
-| **Editor** | Recorta, converte para 1080x1920 (fundo desfocado ou corte central), normaliza o áudio, queima legendas animadas e o gancho nos 3 primeiros segundos | ffmpeg |
+| **Editor** | Recorta, converte para 1080x1920 (fundo desfocado ou corte central), normaliza o áudio, coloca legendas animadas, o gancho nos 3 primeiros segundos e a barra de progresso | [HyperFrames](https://github.com/heygen-com/hyperframes) (padrão) ou ffmpeg |
 | **Capista** | Separa frames do trecho, o Claude olha as imagens e escolhe a melhor (rosto expressivo, nítido), indica onde está a pessoa e escreve o texto da capa (2–5 palavras); monta a capa vertical com texto grande e palavra em destaque | Claude (visão) + Pillow |
 | **Publicador** | Sobe no YouTube com `#Shorts`, créditos da fonte, capa, agendamento espaçado e limite diário | YouTube Data API |
 
@@ -52,12 +52,15 @@ coloca o crédito da fonte na descrição.
 
 ## Instalação
 
-Requisitos: Python 3.10+, ffmpeg, uma chave da API da Anthropic e uma conta Google com o canal.
+Requisitos: Python 3.10+, ffmpeg, Node.js 22+ (para o HyperFrames), uma chave da API da Anthropic e uma
+conta Google com o canal.
 
 ```bash
 git clone <este repositório> && cd dashdasias
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+
+cd hyperframes && npm install && npm run preparar && cd ..   # HyperFrames + Chrome de renderização
 
 cp .env.example .env                 # coloque sua ANTHROPIC_API_KEY
 cp config.example.yaml config.yaml   # coloque os canais autorizados e ajuste os filtros
@@ -104,6 +107,30 @@ um e outro.
   YouTube costuma mostrar o próprio vídeo, não a capa.
 - As capas ficam em `dados/shorts/*.jpg`, ao lado de cada vídeo. Para desligar, use `capa.ativo: false`.
 
+## HyperFrames (edição dos vídeos)
+
+O Editor monta cada Short a partir do modelo `hyperframes/short/index.html`, um arquivo HTML com
+animações GSAP: o gancho entra "saltando", a palavra falada acende na cor de destaque e uma barra de
+progresso corre embaixo. Para cada corte, o Editor copia o modelo, coloca o trecho do vídeo e os
+dados do corte em `corte.js` e chama `hyperframes render`.
+
+Para mudar o visual, edite `hyperframes/short/index.html` e veja ao vivo:
+
+```bash
+cd hyperframes
+npm run demo      # cria um vídeo de exemplo
+npm run preview   # abre o estúdio do HyperFrames no navegador
+```
+
+Cada Short leva cerca de 1 minuto de renderização para cada 8 segundos de vídeo em CPU. Se precisar
+de velocidade, use `editor.motor: ffmpeg` no `config.yaml` (sem animações, bem mais rápido).
+
+As **skills do HyperFrames** para o Claude Code estão em `.claude/skills/`. Abra o Claude Code na
+pasta do projeto e peça, por exemplo, "use /talking-head-recut para colocar cards animados neste
+corte" ou "melhore o modelo hyperframes/short com /hyperframes". O HyperFrames envia estatísticas
+de uso anônimas; para desligar: `cd hyperframes && npx hyperframes telemetry disable` (no Docker já
+vem desligado).
+
 ## Rodando 24h (automático)
 
 Use um servidor (VPS) e Docker:
@@ -142,7 +169,9 @@ cortes/
   db.py          estado (SQLite)
   youtube.py     OAuth e cliente da API
   __main__.py    linha de comando
-tests/           testes (inclui edição real com ffmpeg)
+hyperframes/     modelo do Short em HTML (short/index.html) e instalação do HyperFrames
+.claude/skills/  skills do HyperFrames para o Claude Code
+tests/           testes (inclui edição real com ffmpeg e HyperFrames)
 ```
 
 Testes: `pip install pytest && python -m pytest`.

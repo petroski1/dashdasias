@@ -51,6 +51,8 @@ REGRAS = [
      "O login do YouTube expirou. Rode no terminal: python -m cortes auth"),
     (("authentication_error", "AuthenticationError", "invalid x-api-key"), "escalar", 0,
      "A chave da API da Anthropic está inválida. Confira ANTHROPIC_API_KEY no arquivo .env."),
+    (("HyperFrames não instalado",), "escalar", 0,
+     "O HyperFrames não está instalado. Rode: cd hyperframes && npm install && npm run preparar"),
     (("No space left on device",), "escalar", 0,
      "O disco está cheio. Libere espaço (ex.: apague a pasta dados/originais) e reabra a tarefa."),
     (("Video unavailable", "Private video", "This video has been removed", "not available in your country"),

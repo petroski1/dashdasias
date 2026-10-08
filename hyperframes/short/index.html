@@ -1,0 +1,127 @@
+<!doctype html>
+<!--
+  Modelo de Short (1080x1920) renderizado pelo HyperFrames.
+  Os dados de cada corte vêm de corte.js (gerado pelo Agente Editor):
+    window.CORTE = { duracao, video, gancho, palavras: [{i, f, p}], palavras_por_legenda, estilo, cor_destaque, fonte }
+  Para ver ao vivo: cd hyperframes && npm run preview
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body { margin: 0; background: #000; }
+    #root {
+      position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #000;
+      font-family: var(--fonte), "Arial Black", Arial, sans-serif;
+    }
+    .fundo {
+      position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+      filter: blur(42px) brightness(0.55); transform: scale(1.15);
+    }
+    .frente { position: absolute; left: 0; top: 50%; width: 100%; transform: translateY(-50%); }
+    .recorte .frente { top: 0; height: 100%; object-fit: cover; transform: none; }
+    .recorte .fundo { display: none; }
+
+    .gancho {
+      position: absolute; top: 230px; left: 70px; right: 70px; text-align: center;
+      font-size: 68px; font-weight: 900; line-height: 1.12; text-transform: uppercase;
+      color: #111; background: #fff; padding: 26px 34px; border-radius: 26px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .45); opacity: 0;
+    }
+
+    .bloco {
+      position: absolute; left: 50px; right: 50px; top: 1290px; text-align: center; opacity: 0;
+      font-size: 92px; font-weight: 900; line-height: 1.1; text-transform: uppercase;
+    }
+    .palavra { position: relative; display: inline-block; margin: 0 12px; }
+    .palavra span {
+      -webkit-text-stroke: 14px #000; paint-order: stroke fill;
+      text-shadow: 0 8px 18px rgba(0, 0, 0, .6);
+    }
+    .palavra .base { color: #fff; }
+    .palavra .ativa { position: absolute; left: 0; top: 0; color: var(--destaque); opacity: 0; }
+
+    .barra {
+      position: absolute; left: 0; bottom: 0; height: 12px; width: 100%;
+      background: var(--destaque); transform-origin: left center; transform: scaleX(0);
+    }
+  </style>
+</head>
+<body>
+  <div id="root" data-composition-id="root" data-start="0" data-width="1080" data-height="1920">
+    <video id="fundo" class="clip fundo" data-start="0" data-duration="10" muted playsinline></video>
+    <video id="frente" class="clip frente" data-start="0" data-duration="10" playsinline></video>
+    <div id="gancho" class="gancho"></div>
+    <div id="legendas"></div>
+    <div id="barra" class="barra"></div>
+  </div>
+
+  <script src="corte.js"></script>
+  <script src="vendor/gsap.min.js"></script>
+  <script>
+    (function () {
+      const c = window.CORTE;
+      const root = document.getElementById("root");
+      root.style.setProperty("--destaque", c.cor_destaque || "#FFD400");
+      root.style.setProperty("--fonte", c.fonte || "Arial Black");
+      if (c.estilo === "recorte") root.classList.add("recorte");
+
+      for (const id of ["fundo", "frente"]) {
+        const v = document.getElementById(id);
+        v.setAttribute("src", c.video);
+        v.setAttribute("data-duration", String(c.duracao));
+      }
+
+      const tl = gsap.timeline({ paused: true });
+
+      // gancho nos primeiros segundos
+      const gancho = document.getElementById("gancho");
+      if (c.gancho) {
+        gancho.textContent = c.gancho;
+        const sai = Math.min(3, c.duracao) - 0.3;
+        tl.fromTo(gancho, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 0.05);
+        tl.to(gancho, { opacity: 0, y: -40, duration: 0.3 }, Math.max(sai, 0.5));
+      }
+
+      // legendas: blocos de N palavras, a palavra falada acende na cor de destaque
+      const legendas = document.getElementById("legendas");
+      const ws = c.palavras || [];
+      const n = Math.max(c.palavras_por_legenda || 3, 1);
+      for (let b = 0; b < ws.length; b += n) {
+        const grupo = ws.slice(b, b + n);
+        const fimBloco = b + n < ws.length ? ws[b + n].i : grupo[grupo.length - 1].f;
+        const bloco = document.createElement("div");
+        bloco.className = "bloco";
+        legendas.appendChild(bloco);
+
+        grupo.forEach((w, k) => {
+          const palavra = document.createElement("span");
+          palavra.className = "palavra";
+          const base = document.createElement("span");
+          base.className = "base";
+          base.textContent = w.p;
+          const ativa = document.createElement("span");
+          ativa.className = "ativa";
+          ativa.textContent = w.p;
+          palavra.append(base, ativa);
+          bloco.appendChild(palavra);
+
+          const ate = k + 1 < grupo.length ? grupo[k + 1].i : fimBloco;
+          tl.set(ativa, { opacity: 1 }, w.i);
+          tl.set(ativa, { opacity: 0 }, Math.min(ate, c.duracao));
+          tl.fromTo(palavra, { scale: 1 }, { scale: 1.12, duration: 0.08, yoyo: true, repeat: 1 }, w.i);
+        });
+
+        tl.fromTo(bloco, { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.12 }, grupo[0].i);
+        tl.set(bloco, { opacity: 0 }, Math.min(fimBloco, c.duracao));
+      }
+
+      // barra de progresso (também garante que a timeline dure o vídeo inteiro)
+      tl.fromTo("#barra", { scaleX: 0 }, { scaleX: 1, duration: c.duracao, ease: "none" }, 0);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["root"] = tl;
+    })();
+  </script>
+</body>
+</html>

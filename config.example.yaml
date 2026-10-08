@@ -34,11 +34,13 @@ transcricao:
   dispositivo: cpu            # cpu | cuda
 
 editor:
+  motor: hyperframes          # hyperframes (animações em HTML/GSAP) | ffmpeg (mais rápido, sem Node.js)
   estilo: desfocado           # desfocado (vídeo inteiro com fundo borrado) | recorte (corta o centro em 9:16)
   legendas: true
   palavras_por_legenda: 3
   fonte: "Arial"             # nome da fonte das legendas (no Linux vira Liberation Sans)
-  cor_destaque: "&H0000FFFF"  # amarelo no formato ASS (&HAABBGGRR)
+  cor_destaque: "&H0000FFFF"  # motor ffmpeg: amarelo no formato ASS (&HAABBGGRR)
+  cor_destaque_css: "#FFD400" # motor hyperframes: cor das palavras em destaque
 
 capa:
   ativo: true                 # Agente Capista: gera a foto de capa de cada Short

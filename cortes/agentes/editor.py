@@ -1,8 +1,16 @@
-"""Agente Editor: recorta o trecho, converte para 9:16 (1080x1920), queima legendas animadas e o gancho."""
+"""Agente Editor: recorta o trecho, converte para 9:16 (1080x1920), coloca legendas animadas e o gancho.
+
+Dois motores:
+- hyperframes (padrão): o modelo HTML em hyperframes/short/ é renderizado pelo HyperFrames, com
+  animações GSAP (gancho que "salta", palavra falada acendendo, barra de progresso);
+- ffmpeg: legendas ASS queimadas direto pelo ffmpeg. Mais rápido e sem Node.js.
+"""
 from __future__ import annotations
 
 import json
 import logging
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -82,6 +90,12 @@ def filtro_video(estilo: str, legenda: str | None) -> str:
 
 
 def editar(video: Path, transcricao: Path, corte: dict, saida: Path, cfg: Editor) -> Path:
+    if cfg.motor == "hyperframes":
+        return editar_hyperframes(video, transcricao, corte, saida, cfg)
+    return editar_ffmpeg(video, transcricao, corte, saida, cfg)
+
+
+def editar_ffmpeg(video: Path, transcricao: Path, corte: dict, saida: Path, cfg: Editor) -> Path:
     palavras = json.loads(transcricao.read_text(encoding="utf-8"))["palavras"]
     inicio, fim = corte["inicio"], corte["fim"]
     saida.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +118,75 @@ def editar(video: Path, transcricao: Path, corte: dict, saida: Path, cfg: Editor
     subprocess.run(comando, check=True, cwd=saida.parent)
     verificar(saida)
     log.info("editor: %s (%.1fs)", saida.name, fim - inicio)
+    return saida
+
+
+RAIZ_HF = Path(__file__).resolve().parents[2] / "hyperframes"
+
+
+class HyperFramesAusente(RuntimeError):
+    pass
+
+
+def _hyperframes_bin() -> str:
+    exe = RAIZ_HF / "node_modules" / ".bin" / ("hyperframes.cmd" if os.name == "nt" else "hyperframes")
+    if not exe.exists() or not (RAIZ_HF / "short" / "vendor" / "gsap.min.js").exists():
+        raise HyperFramesAusente(
+            "HyperFrames não instalado. Rode: cd hyperframes && npm install && npm run preparar "
+            "(ou use editor.motor: ffmpeg no config.yaml)"
+        )
+    return str(exe)
+
+
+def palavras_do_corte(palavras: list[dict], inicio: float, fim: float) -> list[dict]:
+    """Palavras dentro do corte, com tempo relativo ao início do corte."""
+    return [
+        {"i": round(w["i"] - inicio, 3), "f": round(w["f"] - inicio, 3), "p": _limpar(w["p"])}
+        for w in palavras
+        if w["i"] >= inicio - 0.05 and w["f"] <= fim + 0.05 and _limpar(w["p"])
+    ]
+
+
+def editar_hyperframes(video: Path, transcricao: Path, corte: dict, saida: Path, cfg: Editor) -> Path:
+    exe = _hyperframes_bin()
+    palavras = json.loads(transcricao.read_text(encoding="utf-8"))["palavras"]
+    inicio, fim = corte["inicio"], corte["fim"]
+    duracao = round(fim - inicio, 3)
+    saida.parent.mkdir(parents=True, exist_ok=True)
+
+    # cada render usa uma cópia do modelo, com o trecho já cortado e os dados do corte
+    projeto = saida.parent / f".hf_{saida.stem}"
+    shutil.rmtree(projeto, ignore_errors=True)
+    shutil.copytree(RAIZ_HF / "short", projeto, ignore=shutil.ignore_patterns("demo.mp4", "corte.js"))
+    subprocess.run(
+        ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+         "-ss", f"{inicio:.3f}", "-i", str(video.resolve()), "-t", f"{duracao:.3f}",
+         "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-r", "30",
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "trecho.mp4"],
+        check=True, cwd=projeto,
+    )
+    dados = {
+        "duracao": duracao,
+        "video": "trecho.mp4",
+        "gancho": corte.get("gancho", ""),
+        "palavras": palavras_do_corte(palavras, inicio, fim) if cfg.legendas else [],
+        "palavras_por_legenda": cfg.palavras_por_legenda,
+        "estilo": cfg.estilo,
+        "cor_destaque": cfg.cor_destaque_css,
+        "fonte": cfg.fonte,
+    }
+    (projeto / "corte.js").write_text("window.CORTE = " + json.dumps(dados, ensure_ascii=False) + ";\n", encoding="utf-8")
+
+    r = subprocess.run(
+        [exe, "render", str(projeto), "-o", str(saida.resolve()), "-f", "30", "--crf", "20", "--quiet"],
+        cwd=RAIZ_HF, capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        raise RuntimeError(f"HyperFrames falhou ({r.returncode}):\n{(r.stderr or r.stdout)[-3000:]}")
+    verificar(saida)
+    shutil.rmtree(projeto, ignore_errors=True)
+    log.info("editor (hyperframes): %s (%.1fs)", saida.name, duracao)
     return saida
 
 

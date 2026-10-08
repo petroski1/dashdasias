@@ -98,7 +98,7 @@ def test_editor_gera_short_vertical(tmp_path, estilo):
     transcricao = tmp_path / "origem.json"
     transcricao.write_text(json.dumps({"segmentos": [], "palavras": _palavras(24)}))
     corte = {"inicio": 2.0, "fim": 8.0, "gancho": "Teste"}
-    saida = editor.editar(origem, transcricao, corte, tmp_path / "shorts" / "c1.mp4", Editor(estilo=estilo))
+    saida = editor.editar(origem, transcricao, corte, tmp_path / "shorts" / "c1.mp4", Editor(motor="ffmpeg", estilo=estilo))
     info = editor.verificar(saida)
     assert (info["largura"], info["altura"]) == (1080, 1920)
     assert info["duracao"] == pytest.approx(6.0, abs=0.2)
@@ -165,3 +165,30 @@ def test_criar_capa_usa_frame_escolhido(tmp_path, monkeypatch):
     assert len(imagens) == 4
     assert Image.open(destino).size == (1080, 1920)
     assert destino.stat().st_size <= capista.LIMITE_BYTES
+
+
+def test_palavras_do_corte_ficam_relativas():
+    ws = editor.palavras_do_corte(_palavras(10), 1.0, 3.0)
+    assert ws[0] == {"i": 0.0, "f": 0.4, "p": "p2"}
+    assert all(0 <= w["i"] and w["f"] <= 2.05 for w in ws)
+
+
+HF_INSTALADO = (editor.RAIZ_HF / "node_modules" / ".bin" / "hyperframes").exists()
+
+
+@pytest.mark.skipif(not (HF_INSTALADO and shutil.which("ffmpeg")), reason="HyperFrames não instalado")
+def test_editor_hyperframes_gera_short_vertical(tmp_path):
+    origem = tmp_path / "origem.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30:duration=8",
+         "-f", "lavfi", "-i", "sine=frequency=440:duration=8", "-shortest", "-c:v", "libx264", "-c:a", "aac", str(origem)],
+        check=True,
+    )
+    transcricao = tmp_path / "origem.json"
+    transcricao.write_text(json.dumps({"segmentos": [], "palavras": _palavras(16)}))
+    corte = {"inicio": 2.0, "fim": 6.0, "gancho": "Teste HyperFrames"}
+    saida = editor.editar(origem, transcricao, corte, tmp_path / "shorts" / "c1.mp4", Editor(motor="hyperframes"))
+    info = editor.verificar(saida)
+    assert (info["largura"], info["altura"]) == (1080, 1920)
+    assert info["duracao"] == pytest.approx(4.0, abs=0.2)
+    assert not (tmp_path / "shorts" / ".hf_c1").exists()  # projeto temporário apagado
