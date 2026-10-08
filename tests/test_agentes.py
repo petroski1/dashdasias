@@ -208,3 +208,44 @@ def test_configurar_grava_env_e_canais(tmp_path):
     configurar.gravar_canais([canal], cfg, Path("config.example.yaml"))
     from cortes.config import carregar
     assert carregar(cfg).fontes.canais_autorizados == [canal]
+
+
+def _frases():
+    # 3 frases de 8 palavras, 0,5s por palavra: [0–4s], [4–8s], [8–12s]
+    ws = []
+    for k in range(24):
+        p = f"w{k}" + ("." if k % 8 == 7 else "")
+        ws.append({"i": k * 0.5, "f": k * 0.5 + 0.4, "p": p})
+    return ws
+
+
+def test_ajustar_cortes_comeca_e_termina_em_frase_completa():
+    cfg = Curador(cortes_por_video=1, duracao_min_seg=3, duracao_max_seg=9, nota_minima=0)
+    ws = _frases()
+    # proposta começa no meio da 1ª frase e termina no meio da 2ª
+    [c] = ajustar_cortes([{"inicio": 1.0, "fim": 6.0, "nota": 9}], ws, 12.0, cfg)
+    assert c["inicio"] == pytest.approx(0.0)          # recuou ao começo da frase
+    assert c["fim"] == pytest.approx(7.9 + 0.25)      # estendeu até o ponto final da 2ª frase
+
+
+def test_ajustar_cortes_recua_ao_ultimo_ponto_final_se_passar_do_limite():
+    cfg = Curador(cortes_por_video=1, duracao_min_seg=3, duracao_max_seg=9, nota_minima=0)
+    # 0–11s não cabe em 9s: fica com as 2 primeiras frases (0–8s)
+    [c] = ajustar_cortes([{"inicio": 0.0, "fim": 11.0, "nota": 9}], _frases(), 12.0, cfg)
+    assert c["fim"] == pytest.approx(7.9 + 0.25)
+
+
+def test_pausa_na_fala_conta_como_fim_de_frase():
+    from cortes.agentes.curador import fins_de_frase
+
+    ws = [{"i": k * 0.5, "f": k * 0.5 + 0.4, "p": f"w{k}"} for k in range(200)]
+    for w in ws[100:]:  # pausa de 1s depois da palavra 99
+        w["i"] += 1.0
+        w["f"] += 1.0
+    for k in range(10, 200, 10):  # outras pausas, para a transcrição ter limites suficientes
+        if k != 100:
+            for w in ws[k:]:
+                w["i"] += 0.6
+                w["f"] += 0.6
+    fins = fins_de_frase(ws)
+    assert fins[99] and fins[9] and not fins[50]

@@ -201,3 +201,26 @@ def test_executor_escala_youtube_sem_login_sem_derrubar_a_rodada(ctx, monkeypatc
     assert len(resumo.escaladas) == 2
     textos = " ".join(resumo.escaladas)
     assert "python -m cortes auth" in textos and "cookies_navegador" in textos
+
+
+def test_revisor_reprova_tudo_e_video_volta_ao_curador_uma_vez(ctx, monkeypatch, tmp_path):
+    from cortes.agentes import revisor
+
+    b = ctx.banco
+    original = tmp_path / "v1.mp4"
+    original.write_bytes(b"x")
+    b.inserir_video(id="v1", titulo="a", status="curado", arquivo=str(original), transcricao="t.json", curadorias=1)
+    cid = b.inserir_corte("v1", inicio=10, fim=40, titulo="Corte ruim", hashtags=[], nota=8)
+    monkeypatch.setattr(revisor, "revisar", lambda t, c: {"aprovado": False, "problemas": ["termina no meio da frase"],
+                                                          "titulo": "", "descricao": "", "hashtags": []})
+    resultado = trabalhos.editar(ctx, str(cid))
+    v = b.video("v1")
+    assert "devolvido ao Curador" in resultado
+    assert v["status"] == "transcrito" and "termina no meio da frase" in v["feedback"]
+    assert original.exists()  # o original fica para a nova curadoria
+
+    # segunda reprovação: limite de curadorias atingido, o vídeo encerra e o original é apagado
+    b.atualizar_video("v1", status="curado", curadorias=2)
+    cid2 = b.inserir_corte("v1", inicio=50, fim=80, titulo="Outro ruim", hashtags=[], nota=8)
+    assert "devolvido" not in trabalhos.editar(ctx, str(cid2))
+    assert not original.exists()

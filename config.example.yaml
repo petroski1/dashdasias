@@ -35,7 +35,8 @@ curador:
   idioma: pt-BR
 
 transcricao:
-  modelo_whisper: small       # tiny | base | small | medium | large-v3
+  idioma: pt                  # idioma dos vídeos (vazio = detectar sozinho)
+  modelo_whisper: small       # tiny | base | small | medium | large-v3 (maiores erram menos, mas são mais lentos)
   dispositivo: cpu            # cpu | cuda
 
 editor:

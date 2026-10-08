@@ -68,7 +68,9 @@ def transcrever(ctx: Contexto, video_id: str) -> str:
 
 def curar(ctx: Contexto, video_id: str) -> str:
     v = ctx.banco.video(video_id)
-    cortes = curador.curar(Path(v["transcricao"]), v["titulo"], v["duracao_seg"], ctx.cfg.curador)
+    cortes = curador.curar(Path(v["transcricao"]), v["titulo"], v["duracao_seg"], ctx.cfg.curador,
+                           feedback=v["feedback"] or "")
+    ctx.banco.atualizar_video(video_id, curadorias=(v["curadorias"] or 0) + 1)
     for c in cortes:
         ctx.banco.inserir_corte(
             video_id, inicio=c["inicio"], fim=c["fim"], titulo=c["titulo"], descricao=c["descricao"],
@@ -89,8 +91,11 @@ def editar(ctx: Contexto, corte_id: str) -> str:
     r = revisor.revisar(transcricao, c)
     if not r["aprovado"]:
         ctx.banco.atualizar_corte(c["id"], status="reprovado", erro="; ".join(r["problemas"]))
+        msg = "reprovado pelo revisor: " + "; ".join(r["problemas"])
+        if _devolver_ao_curador(ctx, c["video_id"]):
+            return msg + " (todos os cortes reprovados: vídeo devolvido ao Curador com as críticas)"
         _apagar_original_se_terminou(ctx, c["video_id"])
-        return "reprovado pelo revisor: " + "; ".join(r["problemas"])
+        return msg
 
     c.update(titulo=r["titulo"], descricao=r["descricao"], hashtags=r["hashtags"])
     saida = ctx.cfg.pasta_dados / "shorts" / f"{c['video_id']}_{c['id']}.mp4"
@@ -131,6 +136,24 @@ def publicar(ctx: Contexto, corte_id: str) -> str:
     )
     capa_ok = bool(c["capa"]) and publicador.enviar_capa(ctx.yt, yt_id, Path(c["capa"]))
     return f"https://youtube.com/shorts/{yt_id}" + ("" if capa_ok else " (sem capa)")
+
+
+def _devolver_ao_curador(ctx: Contexto, video_id: str) -> bool:
+    """Se o Revisor reprovou todos os cortes do vídeo, manda o Curador tentar de novo com as críticas."""
+    banco = ctx.banco
+    v = banco.video(video_id)
+    vivos = banco.con.execute(
+        "SELECT 1 FROM cortes WHERE video_id=? AND status IN ('curado', 'editado', 'publicado')", (video_id,)
+    ).fetchone()
+    if vivos or (v["curadorias"] or 0) >= ctx.cfg.curador.max_curadorias:
+        return False
+    reprovados = banco.con.execute(
+        "SELECT inicio, fim, titulo, erro FROM cortes WHERE video_id=? AND status='reprovado'", (video_id,)
+    ).fetchall()
+    feedback = "\n".join(f"- {r['inicio']:.0f}s–{r['fim']:.0f}s \"{r['titulo']}\": {r['erro']}" for r in reprovados)
+    banco.atualizar_video(video_id, status="transcrito", feedback=feedback)
+    log.info("vídeo %s devolvido ao Curador com %d crítica(s)", video_id, len(reprovados))
+    return True
 
 
 def _apagar_original(ctx: Contexto, video_id: str) -> None:

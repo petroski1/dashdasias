@@ -11,6 +11,13 @@ log = logging.getLogger(__name__)
 
 _modelo = None
 
+# um começo de texto bem pontuado faz o Whisper pontuar a transcrição (ajuda a achar o fim das frases)
+EXEMPLO_PONTUADO = {
+    "pt": "Olá! Tudo bem? Hoje eu vou contar uma história, e vocês vão entender por quê. Vamos lá.",
+    "en": "Hello! How are you? Today I'm going to tell you a story, and you'll see why. Let's go.",
+    "es": "¡Hola! ¿Qué tal? Hoy les voy a contar una historia, y van a entender por qué. Vamos.",
+}
+
 
 def _carregar_modelo(cfg: Transcricao):
     global _modelo
@@ -28,7 +35,10 @@ def transcrever(video: Path, cfg: Transcricao) -> Path:
     if destino.exists():
         return destino
     modelo = _carregar_modelo(cfg)
-    segmentos, info = modelo.transcribe(str(video), word_timestamps=True, vad_filter=True)
+    segmentos, info = modelo.transcribe(
+        str(video), word_timestamps=True, vad_filter=True, language=cfg.idioma or None,
+        initial_prompt=EXEMPLO_PONTUADO.get(cfg.idioma or "", None),
+    )
     segs, palavras = [], []
     for s in segmentos:
         segs.append({"i": round(s.start, 2), "f": round(s.end, 2), "texto": s.text.strip()})

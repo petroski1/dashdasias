@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS videos (
     arquivo TEXT,
     transcricao TEXT,
     erro TEXT,
+    feedback TEXT,
+    curadorias INTEGER NOT NULL DEFAULT 0,
     criado_em TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS cortes (
@@ -72,11 +74,13 @@ class Banco:
         self.con = sqlite3.connect(str(caminho))
         self.con.row_factory = sqlite3.Row
         self.con.executescript(ESQUEMA)
-        # bancos criados antes do Agente Capista não têm a coluna "capa"
-        colunas = {r["name"] for r in self.con.execute("PRAGMA table_info(cortes)")}
-        if "capa" not in colunas:
-            self.con.execute("ALTER TABLE cortes ADD COLUMN capa TEXT")
-            self.con.commit()
+        # bancos criados por versões anteriores ganham as colunas novas
+        for tabela, coluna, tipo in (("cortes", "capa", "TEXT"), ("videos", "feedback", "TEXT"),
+                                     ("videos", "curadorias", "INTEGER NOT NULL DEFAULT 0")):
+            colunas = {r["name"] for r in self.con.execute(f"PRAGMA table_info({tabela})")}
+            if coluna not in colunas:
+                self.con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
+        self.con.commit()
 
     def video_existe(self, video_id: str) -> bool:
         return self.con.execute("SELECT 1 FROM videos WHERE id=?", (video_id,)).fetchone() is not None

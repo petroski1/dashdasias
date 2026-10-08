@@ -30,10 +30,12 @@ class Curador(BaseModel):
     duracao_min_seg: float = 20
     duracao_max_seg: float = 58
     nota_minima: float = 7
+    max_curadorias: int = 2     # se o Revisor reprovar todos os cortes, o Curador tenta de novo até este total
     idioma: str = "pt-BR"
 
 
 class Transcricao(BaseModel):
+    idioma: str = "pt"                 # vazio = detectar sozinho
     modelo_whisper: str = "small"
     dispositivo: str = "cpu"
 
